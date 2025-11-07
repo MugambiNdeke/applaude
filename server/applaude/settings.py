@@ -104,3 +104,15 @@ PAYSTACK_SECRET_KEY = config('PAYSTACK_SECRET_KEY')
 PAYSTACK_PUBLIC_KEY = config('PAYSTACK_PUBLIC_KEY')
 # Paystack uses Naira (NGN) primarily, but we will assume USD for simplicity
 PAYSTACK_CURRENCY = 'USD'
+
+# Import environment-specific settings
+ENVIRONMENT = config('ENVIRONMENT', default='development') # Default to 'development'
+
+if ENVIRONMENT == 'production':
+    # Apply production overrides
+    try:
+        from .settings_production import *
+    except ImportError:
+        # Should not happen if the file is present
+        pass 
+# --------------------------------------------------------
