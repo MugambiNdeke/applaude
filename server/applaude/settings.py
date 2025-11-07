@@ -57,9 +57,10 @@ CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', default='http://localhost:
 CORS_ALLOW_CREDENTIALS = True
 
 # --- Database Configuration (PostgreSQL) ---
+DB_ENGINE = config('DB_ENGINE', default='django.db.backends.postgresql')
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': DB_ENGINE,
         'NAME': config('DB_NAME'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
