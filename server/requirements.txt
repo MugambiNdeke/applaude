@@ -1,1 +1,24 @@
+# Core Django and DRF
+Django~=5.0.0
+djangorestframework~=3.15.0
 
+# Database
+psycopg2-binary~=2.9.9
+
+# Async Tasks
+celery~=5.3.6
+redis~=5.0.0 # Celery broker
+
+# Authentication & Security
+djoser~=2.2.0
+djangorestframework-simplejwt~=5.3.1
+django-cors-headers~=4.3.1
+
+# AI Integration (Mocking the Claude 4.0 API Client)
+httpx~=0.25.0
+
+# Payments (Paystack)
+python-paystack~=1.1.0
+
+# Environment Variables
+python-decouple~=3.8
