@@ -1,0 +1,70 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # --- 1. Backend API Service (Django/Gunicorn) ---
+  django_api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: applaud-django-api
+    container_name: applaud_api
+    command: /bin/sh -c "/app/start.sh"
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./server/.env
+    depends_on:
+      - postgres_db
+      - redis_broker
+
+  # --- 2. Celery Worker Service ---
+  celery_worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: applaud-celery-worker
+    container_name: applaud_celery
+    command: celery -A applaud worker -l info
+    env_file:
+      - ./server/.env
+    depends_on:
+      - django_api
+      - redis_broker
+
+  # --- 3. Redis Broker (For Celery) ---
+  redis_broker:
+    image: redis:7-alpine
+    container_name: applaud_redis
+    expose:
+      - "6379"
+    # Map REDIS_URL in .env to the container name
+    # REDIS_URL=redis://redis_broker:6379/0
+
+  # --- 4. PostgreSQL Database ---
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: applaud_postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # This should match the .env file
+
+  # --- 5. Frontend UI Service (Vite/React) ---
+  react_ui:
+    image: node:20-alpine
+    container_name: applaud_ui
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    working_dir: /app/client
+    volumes:
+      - ./client:/app/client
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
