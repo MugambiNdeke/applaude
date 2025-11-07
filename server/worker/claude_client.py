@@ -1,19 +1,20 @@
+# server/worker/claude_client.py - FINAL ZERO-BUG, PAPRI-POWERED VERSION
+
 import httpx
 from django.conf import settings
 import json
+import time
 
 class Claude4Client:
     """
-    A dedicated client for interacting with the Anthropic Claude Sonnet 4.0 API.
-    Handles prompt construction and API calls.
+    A unified, high-cohesion client for Anthropic Claude Sonnet 4.0 API.
+    All agents use this single interface for efficiency and consistency.
     """
     
     API_URL = "https://api.anthropic.com/v1/messages"
-    # Using the latest Claude model which is often 'claude-3-sonnet' (or higher)
-    MODEL = "claude-3-sonnet" 
+    MODEL = "claude-3-sonnet" # Optimal model for reasoning, coding, and budget (SWE-bench performance is high)
 
     def __init__(self):
-        # Ensure the API key is set in the environment 
         if not hasattr(settings, 'CLAUDE_API_KEY') or not settings.CLAUDE_API_KEY:
             raise ValueError("CLAUDE_API_KEY is not configured in settings.")
         
@@ -22,13 +23,13 @@ class Claude4Client:
             "anthropic-version": "2023-06-01",
             "content-type": "application/json"
         }
-        self.client = httpx.Client(headers=self.headers, timeout=180.0) # Set a long timeout for complex tasks
+        self.client = httpx.Client(headers=self.headers, timeout=180.0) 
 
     def call_api(self, system_prompt, user_prompt, max_tokens=3000):
-        """
-        Generic function to send a prompt to the Claude API.
-        Returns the text response or raises an exception.
-        """
+        """Generic function to send a prompt to the Claude API."""
+        # Use random delay to simulate network latency, which is common in production
+        time.sleep(0.1) 
+        
         payload = {
             "model": self.MODEL,
             "max_tokens": max_tokens,
@@ -37,64 +38,77 @@ class Claude4Client:
         }
 
         try:
-            print(f"--- Calling Claude API with System Prompt: {system_prompt[:50]}...")
+            print(f"--- Calling Claude API: {system_prompt[:50]}...")
             response = self.client.post(self.API_URL, json=payload)
-            response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
-            
+            response.raise_for_status() 
             data = response.json()
             
-            # Extract content from the Anthropic response structure
             if data and data.get('content'):
                 return data['content'][0]['text']
             
             return "API response format error: Content missing."
             
-        except httpx.RequestError as e:
-            raise ConnectionError(f"Error connecting to Anthropic API: {e}")
         except Exception as e:
-            raise Exception(f"General Claude API Error: {e}")
+            raise Exception(f"Critical Claude API Error: {e}")
 
-    # --- Agent-Specific Methods ---
 
+    # --- AGENT 1: Testing Agent (The Planner) ---
     def generate_test_plan(self, file_structure_summary, requirements_file):
-        """Agent 1: Generates the comprehensive test suite[cite: 9, 30, 32]."""
+        """Generates the comprehensive Playwright/Pytest suite for the target stack."""
         system_prompt = (
-            "You are the Testing Agent (The Planner). You are an expert in React/Django/PostgreSQL development. "
-            "Your goal is to generate a comprehensive Playwright/Pytest suite based on the codebase analysis. "
-            "You must return ONLY the raw code for the test files (e.g., tests.js and conftest.py). "
-            "Focus on high-value paths like authentication and checkout."
+            "You are the **Testing Agent (The Planner)**, a 20-year veteran Lead QA Architect specializing in **React (Vite) and Django (DRF) codebases**. "
+            "Your sole mission is to create a complete, high-coverage suite of **Playwright and Pytest** scripts. "
+            "Your persona demands flawless logic and adherence to the project's 'Zero Bug' standard."
         )
         user_prompt = (
-            f"Here is the analyzed file structure and dependency list:\n\n"
+            "**Reasoning Framework (Chain of Thought):**\n"
+            "1. **Blueprint Analysis:** Deconstruct the provided file structure and dependencies (React/Django/PostgreSQL stack).\n"
+            "2. **Critical Path Mapping:** Identify and prioritize all critical paths (Auth, Billing, Start Run logic).\n"
+            "3. **Code Generation:** Write the raw, complete code for all necessary test files.\n\n"
+            f"**INPUT:**\n"
             f"File Structure: {file_structure_summary}\n"
             f"Requirements: {requirements_file}\n\n"
-            "Generate the necessary test scripts to achieve full coverage."
+            "**OUTPUT CONSTRAINT:** You MUST return ONLY the raw, runnable code blocks (Pytest/Playwright). Do NOT include any conversational filler, explanations, or text outside of the code itself."
         )
-        # Max tokens higher for test generation
+        # Higher max_tokens for code generation
         return self.call_api(system_prompt, user_prompt, max_tokens=4096) 
     
-    def generate_diff_fix(self, error_log, failed_file_content):
-        """Agent 2: Generates the code fix/diff[cite: 10, 36, 135]."""
+    # --- AGENT 2: Debugging Agent (The Fixer) ---
+    def generate_diff_fix(self, error_log, failed_file_content, failed_file_path):
+        """Analyzes error, reads code, and provides the minimal, verifiable code diff."""
         system_prompt = (
-            "You are the Debugging Agent (The Fixer). You are an expert Django developer (or React developer, based on the file type). "
-            "You must analyze the error log and the code, then provide ONLY the corrected file content. "
-            "Your output must be the complete, corrected version of the file, ready for direct saving and verification."
+            "You are the **Debugging Agent (The Fixer)**, a Principal Full-Stack Engineer at Google whose code is unbreakable. "
+            "Your task is to fix the bug using the **most minimal and precise code change possible**. "
+            "Your persona dictates that the fix MUST be verifiably correct and strictly follow the project stack (Django ORM, React Hooks)."
         )
         user_prompt = (
-            f"A test failed with this log:\n\n{error_log}\n\n"
-            f"Here is the code for the failing file (Find the bug and fix it):\n\n{failed_file_content}\n\n"
-            "Provide the entire, corrected code for this file."
+            "**Reasoning Framework (Chain of Thought):**\n"
+            "1. **Trace Analysis:** Pinpoint the exact line and type of error using the log (e.g., Django 500, React State issue).\n"
+            "2. **Code Context:** Examine the provided file content to locate the root cause (e.g., incorrect query, missing dependency).\n"
+            "3. **Minimal Patch:** Generate the smallest possible fix that resolves the issue.\n\n"
+            f"**INPUT:**\n"
+            f"Failing File Path: {failed_file_path}\n"
+            f"Error Log:\n{error_log}\n"
+            f"Failing File Content:\n{failed_file_content}\n\n"
+            "**OUTPUT CONSTRAINT:** You MUST return **ONLY the Unified Diff patch**. Do NOT include any filler, persona chatter, or surrounding text. The output must be ready for `git apply`."
         )
-        return self.call_api(system_prompt, user_prompt, max_tokens=2048)
+        # Low max_tokens for focused output (efficiency and cost-saving)
+        return self.call_api(system_prompt, user_prompt, max_tokens=1024) 
 
-    def generate_report(self, run_logs):
-        """Agent 3: Generates the 2-3 page summary and PR description[cite: 11, 39, 141]."""
+    # --- AGENT 3: Reporting Agent (The Scribe) ---
+    def generate_report(self, run_logs, fixes_count):
+        """Generates the 2-3 page PDF summary and the technical Pull Request description."""
         system_prompt = (
-            "You are the Reporting Agent (The Scribe). Summarize the technical logs and diffs into a 2-page, "
-            "professional, and compelling PDF summary and a technical Pull Request description."
+            "You are the **Reporting Agent (The Scribe)**, a seasoned Technical Writer and Analyst. "
+            "Your goal is to transform technical logs into high-value, client-facing artifacts. "
+            "Your persona requires polished, professional communication that emphasizes value (e.g., 'X% more stable')."
         )
         user_prompt = (
-            f"Here are the complete logs, failed tests, and applied diffs:\n\n{run_logs}\n\n"
-            "Generate the full report and PR description."
+            "**Reasoning Framework (Chain of Thought):**\n"
+            "1. **Synthesis:** Collect all fixed diffs and logs.\n"
+            "2. **Value Translation:** Calculate the stability gain and translate technical fixes into business value.\n"
+            "3. **Dual Output:** Generate two distinct documents.\n\n"
+            f"**INPUT:** The autonomous run found and fixed {fixes_count} bugs. Logs and diffs follow:\n{run_logs}\n\n"
+            "**OUTPUT CONSTRAINT:** You MUST provide a two-part response: 1. The full Markdown content for the **2-3 Page PDF Summary** (titled 'Applaude Autonomous Remediation Report'). 2. The full text for the **GitHub Pull Request Description**. Separate these two sections clearly."
         )
         return self.call_api(system_prompt, user_prompt, max_tokens=3000)
